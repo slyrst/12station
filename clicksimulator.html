@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+
+<title>12STATION - Click Simulator</title>
+
+<style>
+
+body{
+
+font-family:Arial,Helvetica,sans-serif;
+font-size:10pt;
+background:#EEF2FF;
+color:#000;
+margin:0;
+padding:5px;
+
+}
+
+
+a{
+
+color:#000080;
+text-decoration:none;
+
+}
+
+
+#header{
+
+position:absolute;
+top:5px;
+left:5px;
+
+}
+
+
+
+.logo{
+
+text-align:center;
+padding-top:40px;
+color:#000080;
+
+}
+
+
+.logo span{
+
+font-size:30px;
+font-weight:bold;
+
+}
+
+
+.logo small{
+
+display:block;
+color:#667788;
+
+}
+
+
+
+.station{
+
+width:468px;
+max-width:100%;
+margin:25px auto;
+
+background:#D6DAF0;
+border:1px solid #8899AA;
+padding:10px;
+
+}
+
+
+
+.postblock{
+
+background:#B7C5D9;
+border:1px solid #8899AA;
+padding:5px;
+font-weight:bold;
+
+}
+
+
+
+.content{
+
+background:#EEF2FF;
+padding:20px;
+text-align:center;
+
+}
+
+
+
+.stats{
+
+background:#D6DAF0;
+border:1px solid #8899AA;
+padding:10px;
+margin-bottom:20px;
+
+}
+
+
+
+
+/* SQUISHY BUTTON */
+
+#click{
+
+width:200px;
+height:200px;
+
+border-radius:50%;
+
+background:#B7C5D9;
+
+border:3px solid #667788;
+
+font-size:30px;
+
+font-weight:bold;
+
+cursor:pointer;
+
+position:relative;
+
+box-shadow:
+0 12px 0 rgba(0,0,0,0.15),
+inset 0 -10px 20px rgba(0,0,0,0.12),
+inset 0 10px 20px rgba(255,255,255,0.5);
+
+
+transition:
+transform .15s cubic-bezier(.34,1.56,.64,1),
+box-shadow .15s;
+
+
+}
+
+
+/* basılı tutunca ezilme */
+
+#click:active{
+
+transform:
+scaleX(1.15)
+scaleY(0.82)
+translateY(10px);
+
+
+box-shadow:
+
+0 3px 0 rgba(0,0,0,0.15),
+inset 0 -15px 20px rgba(0,0,0,0.15),
+inset 0 5px 20px rgba(255,255,255,0.4);
+
+
+}
+
+
+
+
+.footer{
+
+text-align:center;
+color:#667788;
+margin-top:30px;
+
+}
+
+
+</style>
+
+
+</head>
+
+
+
+<body>
+
+
+
+<div id="header">
+
+<a href="index.html">
+[Home]
+</a>
+
+<a href="games.html">
+[Games]
+</a>
+
+</div>
+
+
+
+
+
+<div class="logo">
+
+<span>12STATION</span>
+
+<small>
+click simulator
+</small>
+
+</div>
+
+
+
+
+
+
+<div class="station">
+
+
+<div class="postblock">
+
+CLICK SIMULATOR
+
+</div>
+
+
+
+<div class="content">
+
+
+<div class="stats">
+
+Clicks:
+
+<b id="clicks">
+0
+</b>
+
+
+</div>
+
+
+
+
+
+<button id="click">
+
+CLICK
+
+</button>
+
+
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+<div class="footer">
+
+12STATION © 2026
+
+</div>
+
+
+
+
+
+
+<script>
+
+
+let clicks =
+Number(localStorage.getItem("12_clicks")) || 0;
+
+
+
+function update(){
+
+document.getElementById("clicks").innerHTML =
+clicks;
+
+localStorage.setItem(
+"12_clicks",
+clicks
+);
+
+}
+
+
+
+
+let button =
+document.getElementById("click");
+
+
+
+button.onclick=function(){
+
+
+clicks++;
+
+update();
+
+
+
+button.animate(
+
+[
+
+{
+transform:"scale(1,1)"
+},
+
+{
+transform:"scale(0.85,1.15)"
+},
+
+{
+transform:"scale(1.12,0.90)"
+},
+
+{
+transform:"scale(1,1)"
+}
+
+],
+
+{
+
+duration:350,
+
+easing:"cubic-bezier(.34,1.56,.64,1)"
+
+}
+
+);
+
+
+
+};
+
+
+
+
+
+update();
+
+
+
+</script>
+
+
+
+</body>
+
+</html>

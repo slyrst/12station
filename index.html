@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>12STATION - Enter Station</title>
+
+
+<style>
+
+body{
+    font-family:Arial, Helvetica, sans-serif;
+    font-size:10pt;
+    background:#EEF2FF;
+    color:#000;
+    margin:0;
+    padding:5px;
+}
+
+
+a{
+    color:#000080;
+    text-decoration:none;
+}
+
+
+#header{
+    position:absolute;
+    top:5px;
+    left:5px;
+    right:5px;
+    font-size:9pt;
+}
+
+
+#navtop{
+    float:left;
+}
+
+
+#navtopr{
+    float:right;
+}
+
+
+.logo{
+
+    clear:both;
+    text-align:center;
+    padding-top:40px;
+    color:#000080;
+
+}
+
+
+.logo span{
+
+    font-size:30px;
+    font-weight:bold;
+
+}
+
+
+.logo small{
+
+    display:block;
+    color:#667788;
+
+}
+
+
+
+.station{
+
+    width:468px;
+    max-width:100%;
+    margin:25px auto;
+    background:#D6DAF0;
+    border:1px solid #8899AA;
+    padding:10px;
+    box-sizing:border-box;
+
+}
+
+
+
+.postblock{
+
+    background:#B7C5D9;
+    border:1px solid #8899AA;
+    padding:5px;
+    font-weight:bold;
+
+}
+
+
+
+.content{
+
+    background:#EEF2FF;
+    padding:10px;
+
+}
+
+
+
+.station-button{
+
+    display:inline-block;
+    background:#B7C5D9;
+    border:1px solid #667788;
+    padding:5px 12px;
+    color:#000080;
+    cursor:pointer;
+
+}
+
+
+
+.station-button:hover{
+
+    background:#C9D4E5;
+
+}
+
+
+
+.question{
+
+    margin:15px 0;
+
+}
+
+
+
+label{
+
+    display:block;
+    font-weight:bold;
+    margin-bottom:5px;
+
+}
+
+
+
+input,select{
+
+    width:100%;
+    padding:5px;
+    box-sizing:border-box;
+
+}
+
+
+
+#error{
+
+    color:#AA0000;
+    font-weight:bold;
+
+}
+
+
+
+#welcomePage,
+#signupPage{
+
+    display:none;
+
+}
+
+
+
+.footer{
+
+    text-align:center;
+    margin-top:30px;
+    color:#667788;
+
+}
+
+
+</style>
+
+
+</head>
+
+
+<body>
+
+
+<div id="header">
+
+<div id="navtop">
+
+<a href="#" onclick="showHome();return false;">[Home]</a>
+
+<a href="games.html">[Games]</a>
+
+</div>
+
+
+<div id="navtopr">
+
+<a href="#" onclick="startStation();return false;">
+[Enter Station]
+</a>
+
+</div>
+
+
+</div>
+
+
+
+<div class="logo">
+
+<span>12STATION</span>
+
+<small>
+the game station
+</small>
+
+</div>
+
+
+
+
+
+<!-- HOME -->
+
+
+<div id="homePage" class="station">
+
+
+<div class="postblock">
+12STATION
+</div>
+
+
+<div class="content">
+
+Welcome to 12STATION.
+
+<br><br>
+
+
+<a class="station-button"
+href="#"
+onclick="startStation();return false;">
+
+Enter Station
+
+</a>
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+<!-- REGISTER -->
+
+
+<div id="signupPage" class="station">
+
+
+<div class="postblock">
+
+NEW DEVICE REGISTRATION
+
+</div>
+
+
+
+<div class="content">
+
+
+<b>New device detected.</b>
+
+<br>
+
+Answer these completely unnecessary questions.
+
+
+<br><br>
+
+
+<form id="weirdForm">
+
+
+
+<div class="question">
+
+<label>
+1. Favourite thing?
+</label>
+
+<input id="q1" required>
+
+</div>
+
+
+
+<div class="question">
+
+<label>
+2. Pigeon name?
+</label>
+
+<input id="q2" required>
+
+</div>
+
+
+
+
+<div class="question">
+
+<label>
+3. Object that wins fight?
+</label>
+
+<select id="q3" required>
+
+<option value="">
+Choose
+</option>
+
+<option>
+Chair
+</option>
+
+<option>
+Traffic cone
+</option>
+
+<option>
+Angry toaster
+</option>
+
+<option>
+Suspicious potato
+</option>
+
+</select>
+
+</div>
+
+
+
+
+<div class="question">
+
+<label>
+4. How many ducks fit in car?
+</label>
+
+<input id="q4" type="number" required>
+
+</div>
+
+
+
+
+<div class="question">
+
+<label>
+5. Colour of door closing sound?
+</label>
+
+<input id="q5" required>
+
+</div>
+
+
+
+
+<div class="question">
+
+<label>
+6. Random number
+</label>
+
+<input id="q6" type="number" required>
+
+</div>
+
+
+
+
+<div class="question">
+
+<label>
+7. Tiny moon name
+</label>
+
+<input id="q7" required>
+
+</div>
+
+
+
+
+<div class="question">
+
+<label>
+8. Lamp watching you?
+</label>
+
+<select id="q8" required>
+
+<option value="">
+Choose
+</option>
+
+<option>
+Yes
+</option>
+
+<option>
+No
+</option>
+
+<option>
+Lamp refuses
+</option>
+
+</select>
+
+
+</div>
+
+
+
+
+
+<div class="question">
+
+<label>
+9. Weird favourite thing
+</label>
+
+<input id="q9" required>
+
+</div>
+
+
+
+
+
+<div class="question">
+
+<label>
+10. Station number
+</label>
+
+
+<select id="q10" required>
+
+
+<option value="">
+Choose
+</option>
+
+
+<option>
+12
+</option>
+
+
+<option>
+12.5
+</option>
+
+
+<option>
+Definitely 12
+</option>
+
+
+</select>
+
+
+</div>
+
+
+
+
+<button class="station-button">
+
+Save Device & Enter
+
+</button>
+
+
+
+<div id="error"></div>
+
+
+</form>
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+
+
+<!-- AFTER REGISTER -->
+
+
+<div id="welcomePage" class="station">
+
+
+<div class="postblock">
+
+DEVICE SAVED
+
+</div>
+
+
+<div class="content">
+
+Device registration complete.
+
+<br><br>
+
+Opening station...
+
+</div>
+
+
+</div>
+
+
+
+
+
+
+<div class="footer">
+
+12STATION © 2026
+
+</div>
+
+
+
+
+
+
+<script>
+
+
+function startStation(){
+
+
+    document.getElementById("homePage").style.display="none";
+
+    document.getElementById("signupPage").style.display="none";
+
+    document.getElementById("welcomePage").style.display="none";
+
+
+
+    let device =
+    localStorage.getItem("12station_device");
+
+
+
+    if(device){
+
+
+        document.getElementById("welcomePage").style.display="block";
+
+
+        setTimeout(function(){
+
+            window.location.href="games.html";
+
+        },1200);
+
+
+
+    }else{
+
+
+        document.getElementById("signupPage").style.display="block";
+
+
+    }
+
+
+}
+
+
+
+
+
+function showHome(){
+
+
+document.getElementById("signupPage").style.display="none";
+
+document.getElementById("welcomePage").style.display="none";
+
+document.getElementById("homePage").style.display="block";
+
+
+}
+
+
+
+
+
+
+
+document.getElementById("weirdForm")
+.addEventListener("submit",function(e){
+
+
+e.preventDefault();
+
+
+
+let device={
+
+
+id:crypto.randomUUID(),
+
+
+q1:q1.value,
+q2:q2.value,
+q3:q3.value,
+q4:q4.value,
+q5:q5.value,
+q6:q6.value,
+q7:q7.value,
+q8:q8.value,
+q9:q9.value,
+q10:q10.value,
+
+
+date:new Date().toISOString()
+
+
+};
+
+
+
+
+localStorage.setItem(
+
+"12station_device",
+
+JSON.stringify(device)
+
+);
+
+
+
+
+document.getElementById("signupPage").style.display="none";
+
+
+document.getElementById("welcomePage").style.display="block";
+
+
+
+setTimeout(function(){
+
+window.location.href="games.html";
+
+
+},1200);
+
+
+
+});
+
+
+
+
+</script>
+
+
+
+</body>
+</html>

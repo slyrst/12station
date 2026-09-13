@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>12STATION Multiplayer</title>
+<link rel="icon" href="data:,">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0b0e12;color:#fff;font-family:Arial,sans-serif}
+body{display:flex}
+canvas{
+  display:block;width:100vw;height:100vh;
+  background:#111820;cursor:crosshair;
+  image-rendering:auto;
+}
+#info{
+  position:fixed;top:14px;left:14px;z-index:20;
+  padding:10px 14px;border:1px solid rgba(255,255,255,.12);
+  border-radius:10px;background:rgba(8,11,15,.72);
+  backdrop-filter:blur(6px);line-height:1.5;pointer-events:none;
+  font-size:14px
+}
+#info b{font-size:16px}
+#hud{
+  position:fixed;right:14px;top:14px;z-index:20;
+  padding:9px 13px;border-radius:10px;
+  background:rgba(8,11,15,.72);border:1px solid rgba(255,255,255,.12);
+  pointer-events:none;font-size:14px
+}
+#deathScreen{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  flex-direction:column;background:rgba(0,0,0,.62);z-index:30;pointer-events:none;
+  backdrop-filter:blur(3px)
+}
+#deathScreen h1{
+  color:#ff3b3b;font-size:clamp(48px,8vw,86px);margin:0 0 8px;
+  text-shadow:0 0 25px rgba(255,0,0,.6)
+}
+#deathScreen p{font-size:20px;margin:5px}
+#spectate{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+  background:rgba(5,8,12,.82);padding:10px 17px;border-radius:9px;
+  display:none;z-index:31;pointer-events:none;border:1px solid rgba(255,255,255,.12)
+}
+</style>
+</head>
+<body>
+<div id="info">
+  <b>12STATION MULTIPLAYER</b><br>
+  WASD = Hareket &nbsp; • &nbsp; Mouse = Nişan / Ateş<br>
+  R = Spectate
+</div>
+<div id="hud">PLAYERS: <span id="playerCount">0</span></div>
+<div id="deathScreen">
+  <h1>ÖLDÜN</h1>
+  <p id="respawnText">5 saniye sonra yeniden doğacaksın</p>
+</div>
+<div id="spectate">SPECTATING: <span id="spectateName">-</span></div>
+<canvas id="game"></canvas>
+
+<script type="module">
+import {
+  insertCoin,
+  onPlayerJoin,
+  setState,
+  getState
+} from "https://cdn.jsdelivr.net/npm/playroomkit@latest/+esm";
+
+await insertCoin();
+
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d",{alpha:false});
+ctx.imageSmoothingEnabled=true;
+
+let W=innerWidth,H=innerHeight,DPR=1;
+function resize(){
+  DPR=Math.min(devicePixelRatio||1,2);
+  W=innerWidth; H=innerHeight;
+  canvas.width=Math.floor(W*DPR);
+  canvas.height=Math.floor(H*DPR);
+  canvas.style.width=W+"px";
+  canvas.style.height=H+"px";
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener("resize",resize);
+resize();
+
+const playerImg=new Image(); playerImg.src="player.png";
+const gunImg=new Image(); gunImg.src="gun.png";
+const bulletImg=new Image(); bulletImg.src="bullet.png";
+
+const WORLD_W=3600,WORLD_H=2200;
+const PLAYER_SIZE=104;
+const PLAYER_RADIUS=43;
+const MAX_SPEED=520;       // pixels/sec
+const ACCEL=3200;
+const FRICTION=3600;
+const BULLET_SPEED=1250;
+const BULLET_DAMAGE=25;
+const RESPAWN_TIME=5000;
+const FIRE_DELAY=110;
+const MAP_VERSION=7;
+
+let myId=null,players={},bullets=[],map=null;
+let keys={};
+let mouse={x:W/2,y:H/2,down:false};
+let camera={x:0,y:0};
+let dead=false,deathTime=0,spectateId=null;
+let shootCooldown=0,lastTime=performance.now(),stateTimer=0;
+let initialized=false,spawnIndex=0;
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function rectsOverlapCircle(x,y,r,o){
+  const cx=clamp(x,o.x,o.x+o.w),cy=clamp(y,o.y,o.y+o.h);
+  return Math.hypot(x-cx,y-cy)<r;
+}
+
+/* =========================================================
+   ARENA / SHOOTER MAP
+   Daha az rastgele, geniş koridorlu, okunabilir ve cover'lı.
+   ========================================================= */
+function createArenaMap(){
+  // TAMAMEN BOŞ MAP:
+  // Sadece sınır duvarları var. İçeride hiçbir random blok/obstacle yok.
+  return {
+    version: 8,
+    style:"empty-shooter",
+    obstacles:[
+      {x:0,y:0,w:WORLD_W,h:55,kind:"wall"},
+      {x:0,y:WORLD_H-55,w:WORLD_W,h:55,kind:"wall"},
+      {x:0,y:0,w:55,h:WORLD_H,kind:"wall"},
+      {x:WORLD_W-55,y:0,w:55,h:WORLD_H,kind:"wall"}
+    ],
+    decorations:[],
+    spawns:[
+      {x:500,y:400},
+      {x:WORLD_W-500,y:WORLD_H-400},
+      {x:WORLD_W-500,y:400},
+      {x:500,y:WORLD_H-400}
+    ]
+  };
+}
+
+function ensureMap(){
+  const serverMap=getState("map");
+  if(serverMap && serverMap.version===8 && serverMap.style==="empty-shooter"){
+    map=serverMap; return;
+  }
+  // Eski kötü/random haritayı yeni sürümle değiştir.
+  map=createArenaMap();
+  setState("map",map,true);
+}
+
+function collides(x,y){
+  if(!map)return true;
+  return map.obstacles.some(o=>rectsOverlapCircle(x,y,PLAYER_RADIUS,o));
+}
+function isInsideObstacle(x,y){return collides(x,y)}
+
+function getSpawn(){
+  if(map?.spawns?.length){
+    for(let n=0;n<map.spawns.length;n++){
+      const s=map.spawns[(spawnIndex+n)%map.spawns.length];
+      if(!collides(s.x,s.y)){spawnIndex=(spawnIndex+n+1)%map.spawns.length;return {...s}}
+    }
+  }
+  return {x:WORLD_W/2,y:WORLD_H/2};
+}
+
+/* =========================================================
+   PLAYER / NETWORK
+   ========================================================= */
+onPlayerJoin(player=>{
+  myId=player.id;
+  ensureMap();
+
+  players=getState("players")||{};
+  const old=players[player.id];
+  const spawn=getSpawn();
+
+  players[player.id]={
+    id:player.id,
+    x:old?.x??spawn.x,
+    y:old?.y??spawn.y,
+    vx:0,vy:0,
+    angle:old?.angle??0,
+    hp:100,
+    alive:true,
+    name:old?.name||("Player "+player.id.slice(0,4))
+  };
+  setState("players",players,true);
+  initialized=true;
+});
+
+/* =========================================================
+   INPUT
+   ========================================================= */
+// =========================================================
+/* SAĞLAM WASD INPUT
+   Hem event.code hem event.key kullanıyoruz.
+   Böylece Türkçe Q klavye dahil farklı klavye düzenlerinde çalışır.
+   ========================================================= */
+function setMoveKey(e, pressed){
+  const code=e.code;
+  const k=(e.key||"").toLowerCase();
+
+  if(code==="KeyW" || k==="w") { keys.w=pressed; return true; }
+  if(code==="KeyA" || k==="a") { keys.a=pressed; return true; }
+  if(code==="KeyS" || k==="s") { keys.s=pressed; return true; }
+  if(code==="KeyD" || k==="d") { keys.d=pressed; return true; }
+  return false;
+}
+
+document.addEventListener("keydown",e=>{
+  if(setMoveKey(e,true)) e.preventDefault();
+
+  const k=(e.key||"").toLowerCase();
+  if(k==="r" && dead){
+    e.preventDefault();
+    spectateNext();
+  }
+});
+
+document.addEventListener("keyup",e=>{
+  if(setMoveKey(e,false)) e.preventDefault();
+});
+
+window.addEventListener("blur",()=>{
+  keys.w=false;
+  keys.a=false;
+  keys.s=false;
+  keys.d=false;
+});
+
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden){
+    keys.w=false;
+    keys.a=false;
+    keys.s=false;
+    keys.d=false;
+  }
+});
+
+canvas.addEventListener("mousemove",e=>{
+  const r=canvas.getBoundingClientRect();
+  mouse.x=e.clientX-r.left;
+  mouse.y=e.clientY-r.top;
+});
+canvas.addEventListener("mousedown",e=>{if(e.button===0)mouse.down=true});
+addEventListener("mouseup",e=>{if(e.button===0)mouse.down=false});
+canvas.addEventListener("mouseleave",()=>mouse.down=false);
+
+/* =========================================================
+   SMOOTH MOVEMENT
+   dt saniye cinsinden; artık FPS'e bağlı değil.
+   ========================================================= */
+function moveAxis(p,dx,dy,dt){
+  // WASD hareketi: doğrudan hedef hıza yaklaş.
+  // Böylece keydown event'ine bağlı kalmaz ve tuşa basılı tutulduğu sürece yürür.
+  const speed=MAX_SPEED;
+  const targetVX=dx*speed;
+  const targetVY=dy*speed;
+  const response=1-Math.exp(-18*dt);
+
+  p.vx += (targetVX-p.vx)*response;
+  p.vy += (targetVY-p.vy)*response;
+
+  // Tuş bırakılınca hızlı ama yumuşak dur.
+  if(dx===0) p.vx *= Math.exp(-14*dt);
+  if(dy===0) p.vy *= Math.exp(-14*dt);
+
+  const nx=p.x+p.vx*dt;
+  const ny=p.y+p.vy*dt;
+
+  if(!collides(nx,p.y)) p.x=nx;
+  else p.vx=0;
+
+  if(!collides(p.x,ny)) p.y=ny;
+  else p.vy=0;
+
+  p.x=clamp(p.x,55+PLAYER_RADIUS,WORLD_W-55-PLAYER_RADIUS);
+  p.y=clamp(p.y,55+PLAYER_RADIUS,WORLD_H-55-PLAYER_RADIUS);
+}
+
+function screenToWorld(x,y){return{x:x+camera.x,y:y+camera.y}}
+
+function updateCamera(dt){
+  let target=null;
+  if(!dead && players[myId])target=players[myId];
+  else if(spectateId && players[spectateId])target=players[spectateId];
+  if(!target)return;
+
+  const desiredX=clamp(target.x-W/2,0,Math.max(0,WORLD_W-W));
+  const desiredY=clamp(target.y-H/2,0,Math.max(0,WORLD_H-H));
+  const smooth=1-Math.exp(-10*dt);
+  camera.x+=(desiredX-camera.x)*smooth;
+  camera.y+=(desiredY-camera.y)*smooth;
+}
+
+/* =========================================================
+   SHOOTING
+   ========================================================= */
+function shoot(){
+  if(!myId||dead||shootCooldown>0)return;
+  const p=players[myId];
+  if(!p||!p.alive)return;
+
+  const target=screenToWorld(mouse.x,mouse.y);
+  const angle=Math.atan2(target.y-p.y,target.x-p.x);
+
+  bullets.push({
+    id:myId+"_"+Math.random().toString(36).slice(2),
+    owner:myId,x:p.x+Math.cos(angle)*62,y:p.y+Math.sin(angle)*62,
+    angle,life:2.0
+  });
+  shootCooldown=FIRE_DELAY;
+}
+
+/* =========================================================
+   DEATH / SPECTATE
+   ========================================================= */
+function showDeathScreen(){
+  document.getElementById("deathScreen").style.display="flex";
+  document.getElementById("spectate").style.display="block";
+  updateSpectateText();
+}
+function hideDeathScreen(){
+  document.getElementById("deathScreen").style.display="none";
+  document.getElementById("spectate").style.display="none";
+}
+function chooseSpectator(){
+  const alive=Object.values(players).filter(p=>p.alive&&p.id!==myId);
+  spectateId=alive.length?alive[0].id:null;
+  updateSpectateText();
+}
+function spectateNext(){
+  const alive=Object.values(players).filter(p=>p.alive&&p.id!==myId);
+  if(!alive.length)return;
+  let i=alive.findIndex(p=>p.id===spectateId);
+  i=(i+1)%alive.length;
+  spectateId=alive[i].id;
+  updateSpectateText();
+}
+function updateSpectateText(){
+  const p=players[spectateId];
+  document.getElementById("spectateName").textContent=p?p.name:"-";
+}
+
+/* =========================================================
+   UPDATE
+   ========================================================= */
+function update(dt){
+  if(!initialized)return;
+  ensureMap();
+
+  // Network snapshot'ını her frame local oyuncunun üstüne yazma.
+  // Aksi halde Playroom'dan gelen eski konum WASD hareketini sürekli geri alabilir.
+  const serverPlayers=getState("players");
+  if(serverPlayers){
+    for(const id in serverPlayers){
+      if(id!==myId) players[id]=serverPlayers[id];
+    }
+
+    // Local oyuncu yoksa sadece o zaman server'dan al.
+    if(!players[myId]) players[myId]=serverPlayers[myId];
+  }
+
+  const p=players[myId];
+  if(!p)return;
+
+  // Ölüm / 5 saniye bekleme
+  if(!p.alive){
+    if(!dead){
+      dead=true; deathTime=performance.now(); chooseSpectator(); showDeathScreen();
+    }
+    const elapsed=performance.now()-deathTime;
+    const remaining=Math.max(0,Math.ceil((RESPAWN_TIME-elapsed)/1000));
+    document.getElementById("respawnText").textContent=
+      remaining>0?remaining+" saniye sonra yeniden doğacaksın":"Yeniden doğuyorsun...";
+
+    if(elapsed>=RESPAWN_TIME){
+      const s=getSpawn();
+      p.x=s.x;p.y=s.y;p.vx=0;p.vy=0;p.hp=100;p.alive=true;
+      dead=false;spectateId=null;hideDeathScreen();
+      setState("players",players,true);
+    }
+    updateCamera(dt);
+    return;
+  }
+
+  if(dead){dead=false;hideDeathScreen()}
+
+  let dx=0,dy=0;
+  if(keys["w"])dy-=1;
+  if(keys["s"])dy+=1;
+  if(keys["a"])dx-=1;
+  if(keys["d"])dx+=1;
+
+  if(dx||dy){
+    const len=Math.hypot(dx,dy);
+    dx/=len;dy/=len;
+  }
+  moveAxis(p,dx,dy,dt);
+
+  // SADECE silah döner; karakter sprite'ı asla mouse'a göre dönmez.
+  const target=screenToWorld(mouse.x,mouse.y);
+  p.angle=Math.atan2(target.y-p.y,target.x-p.x);
+
+  shootCooldown=Math.max(0,shootCooldown-dt*1000);
+  if(mouse.down)shoot();
+
+  // Mermiler
+  for(let i=bullets.length-1;i>=0;i--){
+    const b=bullets[i];
+    b.x+=Math.cos(b.angle)*BULLET_SPEED*dt;
+    b.y+=Math.sin(b.angle)*BULLET_SPEED*dt;
+    b.life-=dt;
+
+    if(b.life<=0||b.x<0||b.y<0||b.x>WORLD_W||b.y>WORLD_H||collides(b.x,b.y)){
+      bullets.splice(i,1);continue;
+    }
+
+    for(const id in players){
+      const t=players[id];
+      if(!t.alive||id===b.owner)continue;
+      if(Math.hypot(b.x-t.x,b.y-t.y)<PLAYER_RADIUS+8){
+        t.hp-=BULLET_DAMAGE;
+        if(t.hp<=0){t.hp=0;t.alive=false;t.vx=0;t.vy=0}
+        bullets.splice(i,1);
+        break;
+      }
+    }
+  }
+
+  updateCamera(dt);
+
+  stateTimer+=dt*1000;
+  if(stateTimer>=40){
+    // Oyuncu konumu/can senkronu
+    setState("players",players,true);
+    stateTimer=0;
+  }
+}
+
+/* =========================================================
+   DRAW MAP
+   ========================================================= */
+function drawMap(){
+  ctx.fillStyle="#111820";ctx.fillRect(0,0,W,H);
+  ctx.save();ctx.translate(-camera.x,-camera.y);
+
+  // Arena zemini
+  ctx.fillStyle="#18212a";ctx.fillRect(0,0,WORLD_W,WORLD_H);
+
+  // Büyük, düzenli zemin grid'i
+  ctx.strokeStyle="rgba(255,255,255,.035)";ctx.lineWidth=1;
+  for(let x=0;x<=WORLD_W;x+=100){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,WORLD_H);ctx.stroke()}
+  for(let y=0;y<=WORLD_H;y+=100){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(WORLD_W,y);ctx.stroke()}
+
+  // Orta arena çizgileri
+  ctx.strokeStyle="rgba(100,170,255,.10)";ctx.lineWidth=4;
+  ctx.strokeRect(120,120,WORLD_W-240,WORLD_H-240);
+  ctx.beginPath();ctx.moveTo(WORLD_W/2,150);ctx.lineTo(WORLD_W/2,WORLD_H-150);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(150,WORLD_H/2);ctx.lineTo(WORLD_W-150,WORLD_H/2);ctx.stroke();
+
+  if(map){
+    // Spawn noktaları
+    map.spawns?.forEach(s=>{
+      ctx.fillStyle="rgba(70,160,255,.06)";
+      ctx.beginPath();ctx.arc(s.x,s.y,100,0,Math.PI*2);ctx.fill();
+    });
+
+    map.obstacles.forEach(o=>{
+      if(o.kind==="wall"){
+        ctx.fillStyle="#26323d";
+        ctx.strokeStyle="#4b5b69";
+      }else if(o.kind==="heavy"){
+        ctx.fillStyle="#344351";
+        ctx.strokeStyle="#66798a";
+      }else{
+        ctx.fillStyle="#2d3b47";
+        ctx.strokeStyle="#536575";
+      }
+      ctx.lineWidth=3;
+      ctx.fillRect(o.x,o.y,o.w,o.h);
+      ctx.strokeRect(o.x,o.y,o.w,o.h);
+
+      // Üst kenar: daha okunabilir cover
+      ctx.fillStyle="rgba(255,255,255,.06)";
+      ctx.fillRect(o.x+6,o.y+6,Math.max(0,o.w-12),7);
+    });
+  }
+  ctx.restore();
+}
+
+function drawBullets(){
+  ctx.save();ctx.translate(-camera.x,-camera.y);
+  bullets.forEach(b=>{
+    if(bulletImg.complete&&bulletImg.naturalWidth){
+      ctx.save();ctx.translate(b.x,b.y);ctx.rotate(b.angle);
+      ctx.drawImage(bulletImg,-22,-11,44,22);
+      ctx.restore();
+    }else{
+      ctx.fillStyle="#ffd84a";ctx.beginPath();ctx.arc(b.x,b.y,8,0,Math.PI*2);ctx.fill();
+    }
+  });
+  ctx.restore();
+}
+
+function drawPlayer(p){
+  if(!p.alive)return;
+  const sx=p.x-camera.x,sy=p.y-camera.y;
+
+  ctx.save();ctx.translate(sx,sy);
+
+  // Büyük karakter gölgesi
+  ctx.fillStyle="rgba(0,0,0,.35)";
+  ctx.beginPath();ctx.ellipse(0,PLAYER_SIZE*.39,PLAYER_SIZE*.44,15,0,0,Math.PI*2);ctx.fill();
+
+  // Karakter ASLA dönmüyor.
+  if(playerImg.complete&&playerImg.naturalWidth){
+    ctx.drawImage(playerImg,-PLAYER_SIZE/2,-PLAYER_SIZE/2,PLAYER_SIZE,PLAYER_SIZE);
+  }else{
+    ctx.fillStyle=p.id===myId?"#3fa9ff":"#e34b4b";
+    ctx.beginPath();ctx.arc(0,0,PLAYER_SIZE/2,0,Math.PI*2);ctx.fill();
+  }
+
+  // Silah yalnızca mouse yönüne dönüyor.
+  ctx.save();ctx.rotate(p.angle);
+  if(gunImg.complete&&gunImg.naturalWidth){
+    ctx.drawImage(gunImg,35,-17,82,34);
+  }else{
+    ctx.fillStyle="#111";ctx.fillRect(28,-11,78,22);
+  }
+  ctx.restore();
+  ctx.restore();
+
+  // İsim + HP
+  ctx.textAlign="center";ctx.font="bold 14px Arial";
+  ctx.fillStyle="rgba(0,0,0,.55)";
+  ctx.fillRect(sx-50,sy-PLAYER_SIZE/2-34,100,18);
+  ctx.fillStyle="#fff";ctx.fillText(p.name,sx,sy-PLAYER_SIZE/2-21);
+
+  ctx.fillStyle="#20252b";ctx.fillRect(sx-48,sy-PLAYER_SIZE/2-12,96,7);
+  ctx.fillStyle=p.hp>40?"#35df64":"#ef3d3d";
+  ctx.fillRect(sx-48,sy-PLAYER_SIZE/2-12,96*Math.max(0,p.hp)/100,7);
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  drawMap();
+  drawBullets();
+  Object.values(players).forEach(drawPlayer);
+
+  const alive=Object.values(players).filter(p=>p.alive).length;
+  document.getElementById("playerCount").textContent=alive;
+}
+
+/* =========================================================
+   LOOP
+   ========================================================= */
+function loop(now){
+  const dt=Math.min((now-lastTime)/1000,.033);
+  lastTime=now;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
