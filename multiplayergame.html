@@ -105,6 +105,7 @@ const FIRE_DELAY=110;
 const MAP_VERSION=7;
 
 let myId=null,players={},bullets=[],map=null;
+let remoteTargets={};
 let keys={};
 let mouse={x:W/2,y:H/2,down:false};
 let camera={x:0,y:0};
@@ -263,7 +264,7 @@ function moveAxis(p,dx,dy,dt){
   const speed=MAX_SPEED;
   const targetVX=dx*speed;
   const targetVY=dy*speed;
-  const response=1-Math.exp(-18*dt);
+  const response=1-Math.exp(-28*dt);
 
   p.vx += (targetVX-p.vx)*response;
   p.vy += (targetVY-p.vy)*response;
@@ -361,7 +362,20 @@ function update(dt){
   const serverPlayers=getState("players");
   if(serverPlayers){
     for(const id in serverPlayers){
-      if(id!==myId) players[id]=serverPlayers[id];
+      if(id!==myId){
+        remoteTargets[id]=serverPlayers[id];
+        if(!players[id]) players[id]=serverPlayers[id];
+      }
+    }
+
+    for(const id in remoteTargets){
+      if(players[id]){
+        players[id].x += (remoteTargets[id].x-players[id].x)*0.18;
+        players[id].y += (remoteTargets[id].y-players[id].y)*0.18;
+        players[id].angle += (remoteTargets[id].angle-players[id].angle)*0.18;
+        players[id].hp = remoteTargets[id].hp;
+        players[id].alive = remoteTargets[id].alive;
+      }
     }
 
     // Local oyuncu yoksa sadece o zaman server'dan al.
