@@ -64,15 +64,12 @@ import {
   insertCoin,
   onPlayerJoin,
   setState,
-  getState,
-  getMyPlayer
+  getState
 } from "https://cdn.jsdelivr.net/npm/playroomkit@latest/+esm";
 
 await insertCoin({
   gameId:"12station"
 });
-
-myId = getMyPlayer().id;
 
 const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d",{alpha:false});
@@ -177,6 +174,7 @@ function getSpawn(){
    PLAYER / NETWORK
    ========================================================= */
 onPlayerJoin(player=>{
+  if(!myId) myId=player.id;
   ensureMap();
 
   players=getState("players")||{};
@@ -193,9 +191,7 @@ onPlayerJoin(player=>{
     alive:true,
     name:old?.name||("Player "+player.id.slice(0,4))
   };
-  setState("players",{
-    [myId]: players[myId]
-  },true);
+  setState("players",players,true);
   initialized=true;
 });
 
@@ -444,9 +440,7 @@ function update(dt){
   stateTimer+=dt*1000;
   if(stateTimer>=40){
     // Oyuncu konumu/can senkronu
-    setState("players",{
-      [myId]: players[myId]
-    },true);
+    setState("players",players,true);
     stateTimer=0;
   }
 }
